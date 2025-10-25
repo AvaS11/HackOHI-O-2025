@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+    <title>BitByBit - Hawaii Power Network Map</title>
+
+    <!-- Load Leaflet from CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    
+    <!-- Load Esri Leaflet from CDN -->
+    <script src="https://unpkg.com/esri-leaflet@3.0.19/dist/esri-leaflet.js"></script>
+    <script src="https://unpkg.com/esri-leaflet-vector@4.3.2/dist/esri-leaflet-vector.js"></script>
+    
+    <!-- PapaParse for CSV -->
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        left: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 14px;
+        color: #323232;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="map"></div>
+
+    <script>
+
+      const accessToken = "AAPTxy8BH1VEsoebNVZXo8HurNa0nJTojqL3TJXQoAhEb0gewpcjPf3ESg0LAh2gEyF_82fldg-BY0-GEyzhca2DsmmM7iiGbwypEi5sqhB3FMDuyPODF1IeiD1ax2QpWweoqSLGQvcL0jlnDlhm0Sd4-0YHkZQUYXY-3uaH0Kzko0kjck_Q9NCyAwEg_VNhtAqswpCyU0bpgii0UtNVpxmcwsCPLIfvCAirlVwPJnDu8K8ISuhUXV1P-yuoOsEM1MRTAT1_IoZERlYC";
+      const basemapEnum = "arcgis/imagery"; // arcgis/navigation, arcgis/imagery, open/osm-style, etc.
+
+      // Create map
+      const map = L.map("map").setView([21.48, -157.95], 11);
+
+      // Set darkgray theme
+      L.esri.basemapLayer("DarkGray").addTo(map);
+      L.esri.basemapLayer("DarkGrayLabels").addTo(map);
+
+// Loading Data:
+      // Load lines.CSV file (Electrical attribute data & line names)
+      let csvData = {};
+      Papa.parse("lines.csv", {
+        download: true,
+        header: true,
+        complete: function (results) {
+          results.data.forEach((row) => {
+            if (row.branch_name) {
+              csvData[row.branch_name.trim()] = row;
+            }
+          });
+          loadGeoJSON(); // after CSV loads
+        },
+      });
+
+      // Load oneline_lines.geojson file (Line locations)
+      // Merge data with lines.CSV based on line names shared between files
+      function loadGeoJSON() {
+        fetch("oneline_lines.geojson")
+          .then((res) => res.json())
+          .then((geojson) => {
+            const layer = L.geoJSON(geojson, {
+              style: function (feature) {
+                return {
+                  // Line color
+                  color: "gray",
+                  weight: 2,
+                };
+              },
+              //
+              onEachFeature: function (feature, layer) {
+                const branch = feature.properties.branch_name;
+                const info = csvData[branch];
+                let popup = `<b>${branch}</b>`;
+                if (info) {
+                  popup += `<br><b>${info.bus0_name}</b> → ${info.bus1_name}`;
+                  popup += `<br>r: ${info.r} Ω<br>x: ${info.x} Ω`;
+                  popup += `<br>ampacity: ${info.ampacity || "N/A"}`;
+                }
+                layer.bindPopup(popup);
+              },
+            }).addTo(map);
+          })
+          .catch((err) => console.error("Error loading GeoJSON:", err));
+        }
+
+    </script>
+
+  </body>
+
+</html>

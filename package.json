@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "chroma-js": "^3.1.2",
+    "esri-leaflet": "^3.0.19",
+    "leaflet": "^1.9.4"
+  }
+}
