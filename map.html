@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-    <title>BitByBit - Hawaii Power Network Map</title>
+    <title>BitByBit - O'ahu Power Network Risk Map</title>
 
     <!-- Load Leaflet from CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
@@ -32,6 +32,16 @@
         font-size: 14px;
         color: #323232;
       }
+      .legend {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.6);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 13px;
+      }
     </style>
   </head>
 
@@ -50,53 +60,77 @@
       L.esri.basemapLayer("DarkGray").addTo(map);
       L.esri.basemapLayer("DarkGrayLabels").addTo(map);
 
-// Loading Data:
-      // Load lines.CSV file (Electrical attribute data & line names)
-      let csvData = {};
-      Papa.parse("lines.csv", {
-        download: true,
-        header: true,
-        complete: function (results) {
-          results.data.forEach((row) => {
-            if (row.branch_name) {
-              csvData[row.branch_name.trim()] = row;
-            }
-          });
-          loadGeoJSON(); // after CSV loads
-        },
-      });
 
+// Loading Data: -------------------------------------------------------------------------------------//
       // Load oneline_lines.geojson file (Line locations)
-      // Merge data with lines.CSV based on line names shared between files
-      function loadGeoJSON() {
         fetch("oneline_lines.geojson")
           .then((res) => res.json())
           .then((geojson) => {
             const layer = L.geoJSON(geojson, {
               style: function (feature) {
                 return {
-                  // Line color
+                  // Line color + weight
                   color: "gray",
                   weight: 2,
                 };
               },
-              //
-              onEachFeature: function (feature, layer) {
-                const branch = feature.properties.branch_name;
-                const info = csvData[branch];
-                let popup = `<b>${branch}</b>`;
-                if (info) {
-                  popup += `<br><b>${info.bus0_name}</b> → ${info.bus1_name}`;
-                  popup += `<br>r: ${info.r} Ω<br>x: ${info.x} Ω`;
-                  popup += `<br>ampacity: ${info.ampacity || "N/A"}`;
-                }
-                layer.bindPopup(popup);
-              },
-            }).addTo(map);
-          })
-          .catch((err) => console.error("Error loading GeoJSON:", err));
-        }
+              // Popups for each line
+              onEachFeature: (feature, layer) => {
+              const props = feature.properties;
+              layer.bindPopup(`
+                <b>${props.LineName || "Unnamed Line"}</b><br>
+                Name: ${props.Name || "N/A"}<br>
+                Circuit: ${props.Circuit || "N/A"}<br>
+                nomkv: ${props.nomkv || "N/A"}
+              `);
+            },
+          }).addTo(map);
+        })
+        .catch((err) => console.error("Error loading GeoJSON:", err));
 
+      // Load lines.CSV file (Electrical attribute data & line names)
+      // Merge data with lines.CSV based on line names shared between files
+      let csvData = {};
+      Papa.parse("lines.csv", {
+      download: true,
+        header: true,
+        complete: function (results) {
+          results.data.forEach((row) => {
+            const lat = parseFloat(row.latitude);
+            const lon = parseFloat(row.longitude);
+            if (!isNaN(lat) && !isNaN(lon)) {
+              L.circleMarker([lat, lon], {
+                radius: 5,
+                fillColor: "#00ffff",
+                color: "#ffffff",
+                weight: 1,
+                opacity: 0.8,
+                fillOpacity: 0.9,
+              })
+                .bindPopup(`<b>${row.bus_name || "Bus"}</b><br>Lat: ${lat}<br>Lon: ${lon}`)
+                .addTo(map);
+            }
+          });
+        },
+      });
+//----------------------------------------------------------------------------------------------------//
+
+      // Add legend
+      const legend = L.control({ position: "bottomleft" });
+      legend.onAdd = function () {
+        const div = L.DomUtil.create("div", "legend");
+        div.innerHTML = `
+          <b>Title</b><br>
+          <span style="color:#00ffff;">■</span> &lt; 0.01<br>
+          <span style="color:#00ff00;">■</span> &lt; 0.05<br>
+          <span style="color:#ffff00;">■</span> &lt; 0.1<br>
+          <span style="color:#ff8800;">■</span> &lt; 0.2<br>
+          <span style="color:#ff0000;">■</span> ≥ 0.2<br>
+        `;
+        return div;
+      };
+      legend.addTo(map);
+        
     </script>
 
   </body>
